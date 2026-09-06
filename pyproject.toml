@@ -87,6 +87,12 @@ docs = [
     "mkdocs-material>=9.5",
     "mkdocs-static-i18n>=1.2",
 ]
+mirror = [
+    # SUSTech CRA mirror (mirrors.sustech.edu.cn) syllabus/training-program
+    # extraction — pypdf gives clean structured text for ~all published
+    # syllabus PDFs (see src/sustech_survival/mirror/syllabus.py).
+    "pypdf>=5.0",
+]
 all = [
     # Everything above, expanded inline (NO self-reference like
     # `sustech_survival[...]` — that made pip probe PyPI for our own package
@@ -96,6 +102,7 @@ all = [
     "anubis-solver>=0.1",
     "cloudscraper>=1.2",
     "pycryptodome>=3.15",
+    "pypdf>=5.0",
     # Pytest is only needed at test time, but lives here so a single
     # `pip install -e ".[all]"` is enough to run the suite — matches the
     # [tool.pytest.ini_options] section below and the test-suite workflow.
