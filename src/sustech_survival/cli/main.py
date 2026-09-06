@@ -1405,8 +1405,8 @@ def build_cli() -> click.Group:
     cli.add_command(papers_cmd)
     cli.add_command(wifi_cmd)
     cli.add_command(lib_cmd)
-    # Lazy-import: the syllabus module pulls in `requests`/`webbrowser`
+    # Lazy-import: the mirror module pulls in `requests`/`webbrowser`
     # transitively. Defer until first use so `sustech --help` stays fast.
-    from ..syllabus.cli import syllabus_cmd as _syllabus_cmd
-    cli.add_command(_syllabus_cmd)
+    from ..mirror.cli import mirror_cmd as _mirror_cmd
+    cli.add_command(_mirror_cmd)
     return cli
