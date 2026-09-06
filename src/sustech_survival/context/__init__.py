@@ -538,8 +538,19 @@ def get_academic_info(dt: datetime) -> tuple:
         phase = sem.human if sem is not None else "semester"
         return str(day.week), phase, f"Week {day.week} of {phase}"
     if day is not None:
-        # Between or outside semesters.
-        label = "Summer Vacation" if today.month in (7, 8) else "Winter Vacation"
+        # Between or outside semesters. Pick a season label based on the
+        # calendar month, not just Jul/Aug — "Winter Vacation" in September
+        # was misleading (it's still summer in the northern hemisphere).
+        m = today.month
+        if m in (7, 8):
+            label = "Summer Vacation"
+        elif m in (1, 2):
+            label = "Winter Vacation"
+        elif m == 9 and today.day < 15:
+            # Early September before Fall semester usually starts.
+            label = "Summer Vacation"
+        else:
+            label = "Between semesters"
         return "—", label, f"[{label}]"
 
     # Fallback: bundled snapshot (offline).
@@ -561,7 +572,15 @@ def get_academic_info(dt: datetime) -> tuple:
     for name, cal in ACADEMIC_CALENDARS.items():
         summer = datetime.strptime(cal["summer_start"], "%Y-%m-%d").date()
         if today >= summer:
-            vac = "Summer Vacation" if "2026" in name else "Winter Vacation"
+            # Same season fix as the live-calendar branch above: pick the
+            # season by month, not by guessing from the calendar year.
+            m = today.month
+            if m in (7, 8):
+                vac = "Summer Vacation"
+            elif m in (1, 2):
+                vac = "Winter Vacation"
+            else:
+                vac = "Between semesters"
             return "—", vac, f"[{vac}]"
     return "—", "Unknown", "[Unknown semester]"
 

@@ -121,11 +121,20 @@ def courses_cmd(semester):
         sys.exit(1)
 
     if not courses:
+        # Try to give a useful hint by listing what xnxq values actually
+        # exist in the live data. Without this, users see a hardcoded
+        # "Available: 2024秋季, 2025春季, 2025秋季" string that goes stale
+        # by the next semester.
+        try:
+            all_rows = get_courses(auth.session)
+            available = sorted({r.get("xnxqmc", "") for r in all_rows if r.get("xnxqmc")})
+        except Exception:
+            available = []
+        avail_str = "、".join(available) if available else "2024秋季, 2025春季, 2025秋季"
         click.secho(
-            "No courses returned — Spring 2026 grades may not be posted yet. "
-            "Available: 2024秋季, 2025春季, 2025秋季. "
-            "Use --semester 2025-2026-1 to filter for Fall 2025.",
-            fg="yellow"
+            f"No courses returned for --semester {semester!r}. "
+            f"Available: {avail_str}. Try without --semester to see all.",
+            fg="yellow",
         )
         return
 
@@ -179,12 +188,19 @@ def grades_cmd(semester, export_path, as_json):
         sys.exit(1)
 
     if not grades:
+        # Live-list the semesters that are actually available rather than
+        # hand-maintaining a string that goes stale.
+        try:
+            from sustech_survival.tis.courses import get_courses
+            all_rows = get_courses(auth.session)
+            available = sorted({r.get("xnxqmc", "") for r in all_rows if r.get("xnxqmc")})
+        except Exception:
+            available = []
+        avail_str = "、".join(available) if available else "2024秋季, 2025春季, 2025秋季"
         click.secho(
-            "No grades returned — either semester not published, wrong code, "
-            "or Spring 2026 grades not yet posted. "
-            "Published: 2024秋季, 2025春季, 2025秋季. "
-            "Try without --semester to see all available.",
-            fg="yellow"
+            f"No grades returned for --semester {semester!r}. "
+            f"Available: {avail_str}. Try without --semester to see all.",
+            fg="yellow",
         )
         return
 
@@ -210,17 +226,17 @@ def grades_cmd(semester, export_path, as_json):
     click.secho(f"  {len(grades)} 门课  |  GPA: {gpa}  |  总学分: {total_creds:.0f}")
     click.secho(f"{'-' * 78}\n", fg="cyan")
     # Header so the score/credit/type columns don't look like random numbers.
-    click.secho(f"  {'课程 (code)':<44} {'分数':>5}  {'学分':>4}  {'性质':<6}  学期", fg="cyan")
+    click.secho(f"  {'课程代码  课程名称':<44} {'分数':>5}  {'学分':>4}  {'性质':<8}  学期", fg="cyan")
     for g in grades:
         row = format_grade_row(g)
         code = row.get("课程代码", "")
-        name = row.get("课程名称", "")
+        name = row.get("课程名称", "") or row.get("_label", "")
         score = row.get("分数", "-")
         credit = row.get("学分", "")
         nature = row.get("性质", "")
         term = row.get("学期", "")
         display = f"{code} {name}".strip() if code else name
-        click.echo(f"  {display[:42]:<44} {score:>5}  {credit:>4}  {nature:<6}  {term}")
+        click.echo(f"  {display[:42]:<44} {score:>5}  {credit:>4}  {nature:<8}  {term}")
     click.echo("")
 
 

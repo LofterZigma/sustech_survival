@@ -108,7 +108,20 @@ def calc_gpa(courses, credit_key="xf", grade_key="xscj"):
 
 
 def format_grade_row(c):
-    """Format a single grade row for display."""
+    """Format a single grade row for display.
+
+    Returns a dict with keys matching the CSV header in
+    ``tis.cli.grades_cmd``:
+
+        课程代码   course code (e.g. "CLE030")
+        课程名称   course name (Chinese)
+        学期       semester name (e.g. "2025秋季")
+        学分       credits
+        分数       final score (numeric) — used for GPA calc
+        等级       letter grade if available (e.g. "A") — separate from 分数
+        性质       必修 / 选修 / 通识必修课 / ...
+        院系       开设院系 (e.g. "语言中心")
+    """
     name = c.get("kcmc", "")
     name_en = c.get("kcmc_en", "")
     code = c.get("kcdm", "")
@@ -119,17 +132,19 @@ def format_grade_row(c):
     nature = c.get("kcxz", "")
     dept = c.get("yxmc", "")
 
-    label = name if name else name_en
-    if not label:
-        label = code or "未知课程"
+    # Prefer Chinese name, fall back to English, then code.
+    label = name or name_en or code or "未知课程"
 
     return {
-        "课程": label,
+        "课程代码": code,
+        "课程名称": name,
         "学期": semester,
         "学分": credit,
-        "等级": grade,
         "分数": score,
+        "等级": grade,
         "性质": nature,
+        "院系": dept,
+        "_label": label,  # used by the plain-text table only
     }
 
 
@@ -179,7 +194,7 @@ def run(semester: str = None, export: str = None):
 
         out = _SKILL_ROOT.parent.parent / "workspace" / "sustech" / "grades.csv"
         out.parent.mkdir(parents=True, exist_ok=True)
-        fields = ["课程", "学期", "学分", "等级", "分数", "性质"]
+        fields = ["课程代码", "课程名称", "学期", "学分", "分数", "等级", "性质", "院系"]
         with open(out, "w", newline="", encoding="utf-8-sig") as f:
             w = csv.DictWriter(f, fieldnames=fields)
             w.writeheader()

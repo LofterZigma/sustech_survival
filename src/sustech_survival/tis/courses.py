@@ -21,8 +21,49 @@ def make_session():
     return auth.session
 
 
+def _normalize_semester(sem: str) -> tuple[str, str]:
+    """Convert a CLI semester string into (xn, xq) for the TIS API.
+
+    Accepts any of:
+      - "2025-2026-1"  / "2025-20261"  → ("2025-2026", "1")
+      - "2025-2026-2"  / "2025-20262"  → ("2025-2026", "2")
+      - "2025秋季"     (Chinese semester name from xnxqmc) → ("2025-2026", "1")
+      - "2026春季"     → ("2025-2026", "2")
+      - "2025-2026"    → ("2025-2026", "")  (whole academic year)
+
+    Returns (xn, xq). Either may be empty for "match anything".
+    """
+    import re
+
+    s = (sem or "").strip()
+    if not s:
+        return "", ""
+    # Already "2025-2026-N" or "2025-2026N" format
+    m = re.match(r"^(\d{4}-\d{4})-?(\d)$", s)
+    if m:
+        return m.group(1), m.group(2)
+    # Chinese semester name e.g. "2025秋季", "2026春季", "2024夏季"
+    cn_map = {"春": "2", "秋": "1", "夏": "3", "冬": "1"}
+    m = re.match(r"^(\d{4})([春夏秋冬])(季|学期)?$", s)
+    if m:
+        return f"{m.group(1)}-{int(m.group(1))+1}", cn_map[m.group(2)]
+    # Just xn-xq without semester number
+    m = re.match(r"^(\d{4}-\d{4})$", s)
+    if m:
+        return m.group(1), ""
+    # Fallback: leave as-is and let the API / caller decide
+    return s, ""
+
+
 def get_courses(session, semester: str = None):
-    """Fetch courses from TIS grade API (same endpoint as grades)."""
+    """Fetch courses from TIS grade API (same endpoint as grades).
+
+    Args:
+        semester: optional filter — accepts "2025-2026-1" or "2025秋季" style.
+            Internally normalized into (xn, xq) and matched against the row's
+            xnxq (e.g. "2025-20261") field, since TIS doesn't take a semester
+            filter parameter on this endpoint.
+    """
     r = session.post(
         "https://tis.sustech.edu.cn/cjgl/grcjcx/grcjcx",
         json={"xn": None, "xq": None, "kcmc": None, "cxbj": "-1", "pylx": "1", "current": 1, "pageSize": 500},
@@ -38,7 +79,13 @@ def get_courses(session, semester: str = None):
         raise NetworkError(f"TIS returned {r.status_code}: {r.text[:200]}")
     courses = r.json().get("content", {}).get("list", [])
     if semester:
-        courses = [c for c in courses if semester in c.get("xnxqmc", "")]
+        target_xn, target_xq = _normalize_semester(semester)
+        def _match(row):
+            xnxq = row.get("xnxq", "")  # e.g. "2025-20261"
+            xn_match = (not target_xn) or xnxq.startswith(target_xn)
+            xq_match = (not target_xq) or xnxq.endswith(target_xq)
+            return xn_match and xq_match
+        courses = [c for c in courses if _match(c)]
     return courses
 
 
@@ -99,7 +146,7 @@ def run(semester: str = None, format: str = "table"):
             code = c.get("kcdm", "")
             name = c.get("kcmc", "") or c.get("kcmc_en", "")
             credit = c.get("xf", 0)
-            teacher = c.get("dgjsmc", "") or ""
+            teacher = c.get("dgjsmc", "")
             display = f"{code} {name}" if code else name
             print(f"    {display[:45]:<46} {credit:.1f}学分")
             if teacher:
